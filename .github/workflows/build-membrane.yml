@@ -1,0 +1,73 @@
+name: Build Phantom Membrane rootfs (from scratch)
+
+on:
+  push:
+    paths:
+      - 'membrane.c'                     # your source file
+      - '.github/workflows/build-membrane.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install musl tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Compile membrane statically
+        run: musl-gcc -static -Os -o membrane membrane.c
+
+      - name: Assemble rootfs
+        run: |
+          ROOTFS="${{ runner.temp }}/rootfs"
+          mkdir -p "$ROOTFS"/{dev,proc,sys,tmp,etc,server,runtime}
+
+          # /etc/wsl.conf – boot directly into membrane
+          cat > "$ROOTFS/etc/wsl.conf" <<'EOF'
+          [boot]
+          systemd=false
+          command = /init
+          EOF
+
+          # /etc/fstab – mount Windows server & runtime folders (placeholder UUID)
+          cat > "$ROOTFS/etc/fstab" <<'EOF'
+          D:\Wings\runtimes\java       /runtime   drvfs   defaults   0 0
+          D:\Wings\Servers\Server-__UUID__   /server    drvfs   defaults   0 0
+          EOF
+
+          # /etc/wsl-distribution.conf – minimal OOBE
+          cat > "$ROOTFS/etc/wsl-distribution.conf" <<'EOF'
+          [oobe]
+          command = /bin/true
+          defaultUid = 0
+          defaultName = Phantom-Membrane
+
+          [shortcut]
+          enabled = false
+
+          [windowsterminal]
+          enabled = false
+          EOF
+
+          # /etc/passwd and /etc/shadow (root only, no password)
+          echo 'root:x:0:0:root:/root:/bin/sh' > "$ROOTFS/etc/passwd"
+          echo 'root:*:19000:0:99999:7:::' > "$ROOTFS/etc/shadow"
+
+          # Copy compiled membrane binary as /init
+          cp membrane "$ROOTFS/init"
+          chmod 755 "$ROOTFS/init"
+
+          # Set ownership to root
+          chown -R root:root "$ROOTFS"
+
+          # Create tar.gz (following Microsoft's recommendation)
+          tar --numeric-owner --absolute-names -czf phantom-membrane.tar.gz -C "$ROOTFS" .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: phantom-membrane-rootfs
+          path: phantom-membrane.tar.gz
