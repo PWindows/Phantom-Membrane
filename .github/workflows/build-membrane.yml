@@ -60,9 +60,6 @@ jobs:
           cp membrane "$ROOTFS/init"
           chmod 755 "$ROOTFS/init"
 
-          # Set ownership to root
-          chown -R root:root "$ROOTFS"
-
           # Create tar.gz (following Microsoft's recommendation)
           tar --numeric-owner --absolute-names -czf phantom-membrane.tar.gz -C "$ROOTFS" .
 
