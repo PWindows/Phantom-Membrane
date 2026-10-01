@@ -29,7 +29,7 @@ jobs:
           cat > "$ROOTFS/etc/wsl.conf" <<'EOF'
           [boot]
           systemd=false
-          command = /init
+          command = /membrane --runtime /runtime --server /server
           EOF
 
           # /etc/fstab – for testing, only mount runtime (server will be added later by Phantom Wings)
@@ -63,8 +63,8 @@ jobs:
           ln -s /bin/busybox "$ROOTFS/bin/sh"
 
           # Copy compiled membrane binary as /init
-          cp membrane "$ROOTFS/init"
-          chmod 755 "$ROOTFS/init"
+          cp membrane "$ROOTFS/membrane"
+          chmod 755 "$ROOTFS/membrane"
 
           # Create tar.gz
           tar --numeric-owner --absolute-names -czf phantom-membrane.tar.gz -C "$ROOTFS" .
