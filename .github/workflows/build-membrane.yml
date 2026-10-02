@@ -26,7 +26,6 @@ jobs:
           ROOTFS="${{ runner.temp }}/rootfs"
           mkdir -p "$ROOTFS"/{dev,proc,sys,tmp,etc,server,runtime,bin,root}
 
-          # /etc/wsl.conf – boot directly into membrane
           cat > "$ROOTFS/etc/wsl.conf" <<'EOF'
           [automount]
           enabled=false
@@ -34,8 +33,8 @@ jobs:
           [interop]
           enabled=false
           appendWindowsPath=false
+          EOF
 
-          # /etc/wsl-distribution.conf – minimal OOBE
           cat > "$ROOTFS/etc/wsl-distribution.conf" <<'EOF'
           [oobe]
           command = /bin/true
@@ -49,21 +48,17 @@ jobs:
           enabled = false
           EOF
 
-          # /etc/passwd and /etc/shadow
           echo 'root:x:0:0:root:/root:/bin/sh' > "$ROOTFS/etc/passwd"
           echo 'root:*:19000:0:99999:7:::' > "$ROOTFS/etc/shadow"
 
-          # Download busybox
           wget -q https://busybox.net/downloads/binaries/1.35.0-x86_64-linux-musl/busybox -O busybox
           chmod +x busybox
           cp busybox "$ROOTFS/bin/"
           ln -s /bin/busybox "$ROOTFS/bin/sh"
 
-          # Copy compiled membrane binary
           cp membrane "$ROOTFS/membrane"
           chmod 755 "$ROOTFS/membrane"
 
-          # Create tar.gz
           tar --numeric-owner --absolute-names -czf phantom-membrane.tar.gz -C "$ROOTFS" .
 
       - name: Upload artifact

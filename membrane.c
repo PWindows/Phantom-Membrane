@@ -14,6 +14,11 @@ static void usage(const char *prog) {
         prog);
 }
 
+/* drvfs wants backslash Windows paths (D:\foo\bar), not D:/foo/bar */
+static void to_backslashes(char *s) {
+    for (; *s; s++) if (*s == '/') *s = '\\';
+}
+
 static int ensure_dir(const char *path) {
     struct stat st;
     if (stat(path, &st) == 0) {
@@ -28,10 +33,12 @@ static int ensure_dir(const char *path) {
     return 0;
 }
 
-static int do_mount(const char *src, const char *target) {
+static int do_mount(char *src, const char *target) {
     if (ensure_dir(target) != 0) return -1;
 
-    if (mount(src, target, "drvfs", 0, "uid=0,gid=0,metadata") == 0) return 0;
+    to_backslashes(src);
+
+    if (mount(src, target, "drvfs", 0, "metadata") == 0) return 0;
     if (errno == EBUSY) return 0;
 
     if (mount(src, target, "drvfs", 0, NULL) == 0) return 0;
@@ -58,12 +65,16 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    if (do_mount(runtime_src, runtime) != 0) return 1;
-    if (do_mount(server_src, server)   != 0) return 1;
+    /* Duplicate so we can mutate in place (to_backslashes modifies the string) */
+    char *rs = strdup(runtime_src);
+    char *ss = strdup(server_src);
+
+    if (do_mount(rs, runtime) != 0) return 1;
+    if (do_mount(ss, server)  != 0) return 1;
 
     printf("Phantom Membrane active.\n");
-    printf("  Runtime: %s -> %s\n", runtime_src, runtime);
-    printf("  Server:  %s -> %s\n", server_src, server);
+    printf("  Runtime: %s -> %s\n", rs, runtime);
+    printf("  Server:  %s -> %s\n", ss, server);
     fflush(stdout);
 
     while (1) pause();
