@@ -29,14 +29,14 @@ jobs:
           cat > "$ROOTFS/etc/wsl.conf" <<'EOF'
           [boot]
           systemd=false
-          command = /membrane --runtime /runtime --server /server
+          command = /membrane --runtime /runtime --runtime-src D:/test-wings/runtimes/java --server /server --server-src D:/test-wings/servers/Server-test/server
+
           [automount]
           enabled=false
-          
+
           [interop]
           enabled=false
           appendWindowsPath=false
-          EOF
 
           # /etc/fstab – for testing, only mount runtime (server will be added later by Phantom Wings)
           cat > "$ROOTFS/etc/fstab" <<'EOF'
