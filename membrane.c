@@ -39,20 +39,22 @@ static int do_mount(char *src, const char *target) {
 
     to_backslashes(src);
 
-    /* WSL2 implements drvfs via the 9p filesystem.
-     * The correct aname format is: aname=drvfs;path=<windows_path>;uid=0;gid=0 */
-    char aname[4096];
-    snprintf(aname, sizeof(aname),
-             "aname=drvfs;path=%s;uid=0;gid=0;metadata", src);
+    char options[8192];
+    snprintf(options, sizeof(options),
+             "cache=mmap,msize=262144,trans=virtio,access=client,"
+             "aname=drvfs;path=%s;uid=0;gid=0;symlinkroot=/mnt/",
+             src);
 
-    /* Try the proper 9p mount with metadata first */
-    if (mount("drvfs", target, "9p", 0, aname) == 0) return 0;
+    if (mount("drvfs", target, "9p", 0, options) == 0) return 0;
     if (errno == EBUSY) return 0;
 
-    /* Fallback: 9p without metadata */
-    snprintf(aname, sizeof(aname),
-             "aname=drvfs;path=%s;uid=0;gid=0", src);
-    if (mount("drvfs", target, "9p", 0, aname) == 0) return 0;
+    /* Fallback: without symlinkroot */
+    snprintf(options, sizeof(options),
+             "cache=mmap,msize=262144,trans=virtio,access=client,"
+             "aname=drvfs;path=%s;uid=0;gid=0",
+             src);
+
+    if (mount("drvfs", target, "9p", 0, options) == 0) return 0;
     if (errno == EBUSY) return 0;
 
     fprintf(stderr, "membrane: mount(%s -> %s): %s\n",
