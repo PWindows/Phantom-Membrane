@@ -30,6 +30,12 @@ jobs:
           [boot]
           systemd=false
           command = /membrane --runtime /runtime --server /server
+          [automount]
+          enabled=false
+          
+          [interop]
+          enabled=false
+          appendWindowsPath=false
           EOF
 
           # /etc/fstab – for testing, only mount runtime (server will be added later by Phantom Wings)
