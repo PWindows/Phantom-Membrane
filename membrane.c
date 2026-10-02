@@ -33,37 +33,11 @@ static int ensure_dir(const char *path) {
 static int do_mount(const char *src, const char *target) {
     if (ensure_dir(target) != 0) return -1;
 
-    pid_t pid = fork();
-    if (pid < 0) {
-        fprintf(stderr, "membrane: fork: %s\n", strerror(errno));
-        return -1;
-    }
-    if (pid == 0) {
-        char *argv[] = {
-            "mount.drvfs",
-            "-t", "drvfs",
-            "-o", "metadata,uid=0,gid=0",
-            (char *)src,
-            (char *)target,
-            NULL
-        };
-        execve("/init", argv, NULL);
-        execve("/usr/sbin/mount.drvfs", argv, NULL);
-        execve("/sbin/mount.drvfs", argv, NULL);
-        fprintf(stderr, "membrane: exec mount.drvfs failed: %s\n", strerror(errno));
-        _exit(127);
-    }
+    if (mount(src, target, NULL, MS_BIND, NULL) == 0) return 0;
+    if (errno == EBUSY) return 0;
 
-    int status = 0;
-    if (waitpid(pid, &status, 0) < 0) {
-        fprintf(stderr, "membrane: waitpid: %s\n", strerror(errno));
-        return -1;
-    }
-
-    if (WIFEXITED(status) && WEXITSTATUS(status) == 0) return 0;
-
-    fprintf(stderr, "membrane: mount(%s -> %s) failed (exit %d)\n",
-            src, target, WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+    fprintf(stderr, "membrane: bind mount(%s -> %s): %s\n",
+            src, target, strerror(errno));
     return -1;
 }
 
