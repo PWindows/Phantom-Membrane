@@ -22,6 +22,7 @@ jobs:
 
       - name: Assemble rootfs
         run: |
+          set -e
           ROOTFS="${{ runner.temp }}/rootfs"
           mkdir -p "$ROOTFS"/{dev,proc,sys,tmp,etc,server,runtime,bin,root}
 
@@ -37,14 +38,9 @@ jobs:
           [interop]
           enabled=false
           appendWindowsPath=false
-
-          # /etc/fstab – for testing, only mount runtime (server will be added later by Phantom Wings)
-          cat > "$ROOTFS/etc/fstab" <<'EOF'
-          # D:\Wings\runtimes\java   /runtime   drvfs   defaults   0 0
-          # D:\Wings\Servers\Server-__UUID__   /server    drvfs   defaults   0 0
           EOF
 
-          # /etc/wsl-distribution.conf
+          # /etc/wsl-distribution.conf – minimal OOBE
           cat > "$ROOTFS/etc/wsl-distribution.conf" <<'EOF'
           [oobe]
           command = /bin/true
@@ -62,13 +58,13 @@ jobs:
           echo 'root:x:0:0:root:/root:/bin/sh' > "$ROOTFS/etc/passwd"
           echo 'root:*:19000:0:99999:7:::' > "$ROOTFS/etc/shadow"
 
-          # Download and install busybox (static)
-          wget https://busybox.net/downloads/binaries/1.35.0-x86_64-linux-musl/busybox -O busybox
+          # Download busybox
+          wget -q https://busybox.net/downloads/binaries/1.35.0-x86_64-linux-musl/busybox -O busybox
           chmod +x busybox
           cp busybox "$ROOTFS/bin/"
           ln -s /bin/busybox "$ROOTFS/bin/sh"
 
-          # Copy compiled membrane binary as /init
+          # Copy compiled membrane binary
           cp membrane "$ROOTFS/membrane"
           chmod 755 "$ROOTFS/membrane"
 
