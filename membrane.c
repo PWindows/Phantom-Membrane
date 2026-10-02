@@ -3,9 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
-#include <sys/mount.h>
-#include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 static void usage(const char *prog) {
     fprintf(stderr,
@@ -13,11 +12,6 @@ static void usage(const char *prog) {
         "  --runtime <mountpoint>  --runtime-src <windows-path>\n"
         "  --server  <mountpoint>  --server-src  <windows-path>\n",
         prog);
-}
-
-/* drvfs wants backslash Windows paths (D:\foo\bar), not D:/foo/bar */
-static void to_backslashes(char *s) {
-    for (; *s; s++) if (*s == '/') *s = '\\';
 }
 
 static int ensure_dir(const char *path) {
@@ -34,31 +28,49 @@ static int ensure_dir(const char *path) {
     return 0;
 }
 
-static int do_mount(char *src, const char *target) {
+/* Fork+exec /init as mount.drvfs to perform a proper drvfs mount */
+static int do_mount(const char *src, const char *target) {
     if (ensure_dir(target) != 0) return -1;
 
-    to_backslashes(src);
+    pid_t pid = fork();
+    if (pid < 0) {
+        fprintf(stderr, "membrane: fork: %s\n", strerror(errno));
+        return -1;
+    }
 
-    char options[8192];
-    snprintf(options, sizeof(options),
-             "cache=mmap,msize=262144,trans=virtio,access=client,"
-             "aname=drvfs;path=%s;uid=0;gid=0;symlinkroot=/mnt/",
-             src);
+    if (pid == 0) {
+        /* Child: exec /init as mount.drvfs */
+        char *argv[] = {
+            "mount.drvfs",
+            "-t", "drvfs",
+            "-o", "metadata,uid=0,gid=0",
+            (char *)src,
+            (char *)target,
+            NULL
+        };
+        execve("/init", argv, NULL);
 
-    if (mount("drvfs", target, "9p", 0, options) == 0) return 0;
-    if (errno == EBUSY) return 0;
+        /* If /init doesn't exist, try the well-known symlink locations */
+        execve("/usr/sbin/mount.drvfs", argv, NULL);
+        execve("/sbin/mount.drvfs", argv, NULL);
 
-    /* Fallback: without symlinkroot */
-    snprintf(options, sizeof(options),
-             "cache=mmap,msize=262144,trans=virtio,access=client,"
-             "aname=drvfs;path=%s;uid=0;gid=0",
-             src);
+        fprintf(stderr, "membrane: exec mount.drvfs: %s\n", strerror(errno));
+        _exit(127);
+    }
 
-    if (mount("drvfs", target, "9p", 0, options) == 0) return 0;
-    if (errno == EBUSY) return 0;
+    int status = 0;
+    waitpid(pid, &status, 0);
 
-    fprintf(stderr, "membrane: mount(%s -> %s): %s\n",
-            src, target, strerror(errno));
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 0) return 0;
+
+    /* Already mounted? */
+    if (access(target, F_OK) == 0) {
+        struct stat st;
+        if (stat(target, &st) == 0 && S_ISDIR(st.st_mode)) return 0;
+    }
+
+    fprintf(stderr, "membrane: drvfs mount failed for %s -> %s (exit %d)\n",
+            src, target, WEXITSTATUS(status));
     return -1;
 }
 
@@ -78,15 +90,12 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    char *rs = strdup(runtime_src);
-    char *ss = strdup(server_src);
-
-    if (do_mount(rs, runtime) != 0) return 1;
-    if (do_mount(ss, server)  != 0) return 1;
+    if (do_mount(runtime_src, runtime) != 0) return 1;
+    if (do_mount(server_src, server)   != 0) return 1;
 
     printf("Phantom Membrane active.\n");
-    printf("  Runtime: %s -> %s\n", rs, runtime);
-    printf("  Server:  %s -> %s\n", ss, server);
+    printf("  Runtime: %s -> %s\n", runtime_src, runtime);
+    printf("  Server:  %s -> %s\n", server_src, server);
     fflush(stdout);
 
     while (1) pause();
