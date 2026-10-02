@@ -55,6 +55,8 @@ jobs:
           chmod +x busybox
           cp busybox "$ROOTFS/bin/"
           ln -s /bin/busybox "$ROOTFS/bin/sh"
+          ln -s /bin/busybox "$ROOTFS/bin/mount"
+          ln -s /bin/busybox "$ROOTFS/bin/umount"
 
           cp membrane "$ROOTFS/membrane"
           chmod 755 "$ROOTFS/membrane"
