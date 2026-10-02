@@ -3,14 +3,14 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
-#include <sys/wait.h>
+#include <sys/mount.h>
 #include <sys/stat.h>
 
 static void usage(const char *prog) {
     fprintf(stderr,
         "Usage: %s\n"
-        "  --runtime <mountpoint>  --runtime-src <windows-path>\n"
-        "  --server  <mountpoint>  --server-src  <windows-path>\n"
+        "  --runtime <mountpoint>  --runtime-src <linux-path>\n"
+        "  --server  <mountpoint>  --server-src  <linux-path>\n"
         "  [--exec <cmd> [args...]]\n",
         prog);
 }
@@ -29,7 +29,6 @@ static int ensure_dir(const char *path) {
     return 0;
 }
 
-/* Fork + exec /init as "mount.drvfs" to perform a real drvfs mount. */
 static int do_mount(const char *src, const char *target) {
     if (ensure_dir(target) != 0) return -1;
 
@@ -71,18 +70,13 @@ int main(int argc, char *argv[]) {
     if (do_mount(runtime_src, runtime) != 0) return 1;
     if (do_mount(server_src, server) != 0) return 1;
 
-    /* No command: mount and exit */
     if (exec_argc == 0) return 0;
 
-    /* Prepend <runtime>/bin to PATH so execvp finds java, etc. */
     char *old_path = getenv("PATH");
     char new_path[8192];
     snprintf(new_path, sizeof(new_path), "%s/bin:%s", runtime, old_path ? old_path : "");
     setenv("PATH", new_path, 1);
 
-    /* Exec the game — this replaces membrane's process image.
-       Its stdin/stdout/stderr flow back to whatever spawned us (Wings).
-       When it exits, the distro has nothing left running and shuts down. */
     execvp(exec_argv[0], exec_argv);
     fprintf(stderr, "membrane: exec %s: %s\n", exec_argv[0], strerror(errno));
     return 127;
