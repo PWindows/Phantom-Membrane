@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 static void usage(const char *prog) {
     fprintf(stderr,
@@ -38,10 +39,20 @@ static int do_mount(char *src, const char *target) {
 
     to_backslashes(src);
 
-    if (mount(src, target, "drvfs", 0, "metadata") == 0) return 0;
+    /* WSL2 implements drvfs via the 9p filesystem.
+     * The correct aname format is: aname=drvfs;path=<windows_path>;uid=0;gid=0 */
+    char aname[4096];
+    snprintf(aname, sizeof(aname),
+             "aname=drvfs;path=%s;uid=0;gid=0;metadata", src);
+
+    /* Try the proper 9p mount with metadata first */
+    if (mount("drvfs", target, "9p", 0, aname) == 0) return 0;
     if (errno == EBUSY) return 0;
 
-    if (mount(src, target, "drvfs", 0, NULL) == 0) return 0;
+    /* Fallback: 9p without metadata */
+    snprintf(aname, sizeof(aname),
+             "aname=drvfs;path=%s;uid=0;gid=0", src);
+    if (mount("drvfs", target, "9p", 0, aname) == 0) return 0;
     if (errno == EBUSY) return 0;
 
     fprintf(stderr, "membrane: mount(%s -> %s): %s\n",
@@ -65,7 +76,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    /* Duplicate so we can mutate in place (to_backslashes modifies the string) */
     char *rs = strdup(runtime_src);
     char *ss = strdup(server_src);
 
