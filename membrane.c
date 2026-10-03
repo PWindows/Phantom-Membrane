@@ -32,6 +32,12 @@
 #define BPF_LD_MAP_FD(DST, MAP_FD) \
     BPF_RAW_INSN(BPF_LD | BPF_DW | BPF_IMM, DST, BPF_PSEUDO_MAP_FD, 0, MAP_FD), \
     BPF_RAW_INSN(0, 0, 0, 0, 0)
+#define BPF_STX_MEM(SIZE, DST, SRC, OFF) \
+    BPF_RAW_INSN(BPF_STX | BPF_SIZE(SIZE) | BPF_MEM, DST, SRC, OFF, 0)
+#define BPF_MOV64_REG(DST, SRC) \
+    BPF_RAW_INSN(BPF_ALU64 | BPF_MOV | BPF_X, DST, SRC, 0, 0)
+#define BPF_ALU64_IMM(OP, DST, IMM) \
+    BPF_RAW_INSN(BPF_ALU64 | BPF_OP(OP) | BPF_K, DST, 0, 0, IMM)
 
 /* ---------------- helpers ---------------- */
 
@@ -142,13 +148,31 @@ static int setup_port_restriction(const char *uuid, char **ports, int nports) {
         return -1;
     }
 
-    struct bpf_insn insns[] = {
-        BPF_LDX_MEM(BPF_W, BPF_REG_2, BPF_REG_1, 24), /* user_port */
+        struct bpf_insn insns[] = {
+        /* r2 = *(u32 *)(r1 + 24)  — user_port from bpf_sock_addr */
+        BPF_LDX_MEM(BPF_W, BPF_REG_2, BPF_REG_1, 24),
+
+        /* *(u32 *)(r10 - 4) = r2  — store port on stack */
+        BPF_STX_MEM(BPF_W, BPF_REG_10, BPF_REG_2, -4),
+
+        /* r2 = r10 - 4  — pointer to stack key */
+        BPF_MOV64_REG(BPF_REG_2, BPF_REG_10),
+        BPF_ALU64_IMM(BPF_ADD, BPF_REG_2, -4),
+
+        /* r1 = map_fd */
         BPF_LD_MAP_FD(BPF_REG_1, 0),
+
+        /* call bpf_map_lookup_elem */
         BPF_EMIT_CALL(BPF_FUNC_map_lookup_elem),
+
+        /* if r0 == 0 goto deny */
         BPF_JMP_IMM(BPF_JEQ, BPF_REG_0, 0, 2),
+
+        /* allow: r0 = 1; exit */
         BPF_MOV64_IMM(BPF_REG_0, 1),
         BPF_EXIT_INSN(),
+
+        /* deny: r0 = 0; exit */
         BPF_MOV64_IMM(BPF_REG_0, 0),
         BPF_EXIT_INSN(),
     };
