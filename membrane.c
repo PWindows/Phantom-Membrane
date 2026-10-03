@@ -120,18 +120,6 @@ static int bpf_prog_attach(int prog_fd, int target_fd, enum bpf_attach_type t) {
     return bpf_sys(BPF_PROG_ATTACH, &attr);
 }
 
-/*
- * Hand-written BPF program for cgroup/bind4:
- *   r2 = *(u32 *)(r1 + 24)          ; user_port from bpf_sock_addr
- *   r1 = map_fd                     ; patched at load time
- *   call bpf_map_lookup_elem
- *   if r0 == 0 goto deny
- *   r0 = 1                          ; allow
- *   exit
- * deny:
- *   r0 = 0                          ; deny (bind returns EPERM)
- *   exit
- */
 static int setup_port_restriction(const char *uuid, char **ports, int nports) {
     if (nports <= 0) return 0;
 
@@ -148,11 +136,11 @@ static int setup_port_restriction(const char *uuid, char **ports, int nports) {
         return -1;
     }
 
-        struct bpf_insn insns[] = {
-        /* r2 = *(u32 *)(r1 + 24)  — user_port from bpf_sock_addr */
-        BPF_LDX_MEM(BPF_W, BPF_REG_2, BPF_REG_1, 24),
+    struct bpf_insn insns[] = {
+        /* r2 = *(u16 *)(r1 + 24)  — user_port (network byte order) */
+        BPF_LDX_MEM(BPF_H, BPF_REG_2, BPF_REG_1, 24),
 
-        /* *(u32 *)(r10 - 4) = r2  — store port on stack */
+        /* *(u32 *)(r10 - 4) = r2  — store (zero-extended) on stack */
         BPF_STX_MEM(BPF_W, BPF_REG_10, BPF_REG_2, -4),
 
         /* r2 = r10 - 4  — pointer to stack key */
@@ -197,7 +185,7 @@ static int setup_port_restriction(const char *uuid, char **ports, int nports) {
     if (prog6_fd < 0) return -1;
 
     for (int i = 0; i < nports; i++) {
-        __u32 key = htonl((__u32)atoi(ports[i]));
+        __u32 key = (__u32)htons((__u16)atoi(ports[i]));
         __u8  val = 1;
         if (bpf_update_elem(map_fd, &key, &val) != 0) {
             fprintf(stderr, "membrane: BPF_MAP_UPDATE(%s): %s\n",
@@ -304,4 +292,4 @@ int main(int argc, char *argv[]) {
     execvp(exec_argv[0], exec_argv);
     fprintf(stderr, "membrane: exec %s: %s\n", exec_argv[0], strerror(errno));
     return 127;
-}
+}fixed some bugs
