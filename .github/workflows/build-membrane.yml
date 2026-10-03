@@ -21,7 +21,10 @@ jobs:
 
       - name: Compile membrane statically
         run: |
-          musl-gcc -static -Os -idirafter /usr/include -o membrane membrane.c
+          musl-gcc -static -Os \
+            -idirafter /usr/include \
+            -idirafter /usr/include/x86_64-linux-gnu \
+            -o membrane membrane.c
 
       - name: Assemble rootfs
         run: |
