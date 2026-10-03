@@ -292,4 +292,4 @@ int main(int argc, char *argv[]) {
     execvp(exec_argv[0], exec_argv);
     fprintf(stderr, "membrane: exec %s: %s\n", exec_argv[0], strerror(errno));
     return 127;
-}fixed some bugs
+}
