@@ -57,7 +57,7 @@ jobs:
           enabled = false
           EOF
 
-          # ---- /etc/os-release (silences oshi warnings) ----
+          # ---- /etc/os-release ----
           cat > "$ROOTFS/etc/os-release" <<'EOF'
           NAME="Phantom Membrane"
           ID=phantom
@@ -83,6 +83,10 @@ jobs:
           ln -sf /bin/busybox "$ROOTFS/bin/sh"
           ln -sf /bin/busybox "$ROOTFS/bin/mount"
           ln -sf /bin/busybox "$ROOTFS/bin/umount"
+          ln -sf /bin/busybox "$ROOTFS/bin/ps"
+          ln -sf /bin/busybox "$ROOTFS/bin/awk"
+          ln -sf /bin/busybox "$ROOTFS/bin/grep"
+          ln -sf /bin/busybox "$ROOTFS/bin/cat"
 
           # ---- glibc for dynamically-linked binaries (Java, etc.) ----
           cp /lib64/ld-linux-x86-64.so.2 "$ROOTFS/lib64/"
