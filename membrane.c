@@ -72,6 +72,11 @@ int main(int argc, char *argv[]) {
 
     if (exec_argc == 0) return 0;
 
+    if (chdir(server) != 0) {
+        fprintf(stderr, "membrane: chdir(%s): %s\n", server, strerror(errno));
+        return 1;
+    }
+
     char *old_path = getenv("PATH");
     char new_path[8192];
     snprintf(new_path, sizeof(new_path), "%s/bin:%s", runtime, old_path ? old_path : "");
