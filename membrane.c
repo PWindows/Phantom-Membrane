@@ -157,7 +157,7 @@ static int setup_port_restriction(const char *uuid, char **ports, int nports) {
     for (size_t i = 0; i + 1 < sizeof(insns) / sizeof(insns[0]); i++) {
         if (insns[i].code == (BPF_LD | BPF_DW | BPF_IMM) &&
             insns[i].src_reg == BPF_PSEUDO_MAP_FD) {
-            insns[i + 1].imm = map_fd;
+            insns[i].imm = map_fd;
             break;
         }
     }
