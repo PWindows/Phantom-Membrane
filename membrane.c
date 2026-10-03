@@ -11,7 +11,7 @@
 #include <linux/bpf.h>
 #include <linux/filter.h>
 
-/* ---- Minimal BPF instruction-construction macros (no libbpf) ---- */
+/* ---- Minimal BPF instruction construction (no libbpf) ---- */
 #ifndef BPF_PSEUDO_MAP_FD
 #define BPF_PSEUDO_MAP_FD 1
 #endif
@@ -116,15 +116,14 @@ static int bpf_prog_attach(int prog_fd, int target_fd, enum bpf_attach_type t) {
 
 /*
  * Hand-written BPF program for cgroup/bind4:
- *
- *   r2 = *(u32 *)(r1 + offsetof(struct bpf_sock_addr, user_port))
- *   r1 = map_fd                        ; patched at load time
+ *   r2 = *(u32 *)(r1 + 24)          ; user_port from bpf_sock_addr
+ *   r1 = map_fd                     ; patched at load time
  *   call bpf_map_lookup_elem
  *   if r0 == 0 goto deny
- *   r0 = 1
+ *   r0 = 1                          ; allow
  *   exit
  * deny:
- *   r0 = 0
+ *   r0 = 0                          ; deny (bind returns EPERM)
  *   exit
  */
 static int setup_port_restriction(const char *uuid, char **ports, int nports) {
