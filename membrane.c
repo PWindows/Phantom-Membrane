@@ -186,10 +186,15 @@ static int setup_port_restriction(const char *uuid, char **ports, int nports) {
         }
     }
 
-    int prog_fd = bpf_load_prog(BPF_PROG_TYPE_CGROUP_SOCK_ADDR,
-                                BPF_CGROUP_INET4_BIND,
-                                insns, sizeof(insns) / sizeof(insns[0]), "GPL");
-    if (prog_fd < 0) return -1;
+    int prog4_fd = bpf_load_prog(BPF_PROG_TYPE_CGROUP_SOCK_ADDR,
+                                 BPF_CGROUP_INET4_BIND,
+                                 insns, sizeof(insns) / sizeof(insns[0]), "GPL");
+    if (prog4_fd < 0) return -1;
+
+    int prog6_fd = bpf_load_prog(BPF_PROG_TYPE_CGROUP_SOCK_ADDR,
+                                 BPF_CGROUP_INET6_BIND,
+                                 insns, sizeof(insns) / sizeof(insns[0]), "GPL");
+    if (prog6_fd < 0) return -1;
 
     for (int i = 0; i < nports; i++) {
         __u32 key = htonl((__u32)atoi(ports[i]));
@@ -206,8 +211,13 @@ static int setup_port_restriction(const char *uuid, char **ports, int nports) {
         fprintf(stderr, "membrane: open(%s): %s\n", cg_path, strerror(errno));
         return -1;
     }
-    if (bpf_prog_attach(prog_fd, cg_fd, BPF_CGROUP_INET4_BIND) != 0) {
-        fprintf(stderr, "membrane: BPF_PROG_ATTACH: %s\n", strerror(errno));
+    if (bpf_prog_attach(prog4_fd, cg_fd, BPF_CGROUP_INET4_BIND) != 0) {
+        fprintf(stderr, "membrane: BPF_PROG_ATTACH (v4): %s\n", strerror(errno));
+        close(cg_fd);
+        return -1;
+    }
+    if (bpf_prog_attach(prog6_fd, cg_fd, BPF_CGROUP_INET6_BIND) != 0) {
+        fprintf(stderr, "membrane: BPF_PROG_ATTACH (v6): %s\n", strerror(errno));
         close(cg_fd);
         return -1;
     }
